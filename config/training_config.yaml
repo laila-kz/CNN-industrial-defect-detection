@@ -1,0 +1,10 @@
+# Training Configuration
+trainDataPath: data/train
+valDataPath: data/val
+testDataPath: data/test
+trainValSplit: 0.8
+numClasses: 2
+numEpochs: 50
+batchSize: 32
+learningRate: 0.001
+useGPU: true

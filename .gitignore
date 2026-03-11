@@ -1,0 +1,41 @@
+# Build files
+build/
+CMakeFiles/
+CMakeCache.txt
+*.o
+*.so
+*.a
+*.exe
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Datasets
+data/train/
+data/test/
+data/val/
+
+# Models
+models/
+*.pt
+*.pth
+
+# Logs
+logs/
+
+# Outputs
+output/
+results/
+
+# Training history
+*.csv
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

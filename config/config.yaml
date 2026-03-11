@@ -1,0 +1,73 @@
+#Central configuration file
+
+#1 paths and directories
+paths:
+  train_img: "data/train/"
+  test_img: "data/test/"
+  train.csv: "data/train.csv"
+  model_save_path: "models/best_model.pth"
+  output_dir: "results/"
+
+#2 img configuration 
+img_config:
+  input_size: [224,224]
+  color_space: "RGB"
+
+  normalization:
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+
+  augmentation:
+    horizontal_flip: true
+    rotation_range: 10
+    brightness_jitter: 0.2
+
+#3 model parameters
+model:
+  architecture: "resnet50"
+  pretrained: true
+  num_classes: 2
+  input_channels: 3
+
+#4 thresholds and hyperparameters
+thresholds:
+  defect_threshold: 0.75
+
+  class_thresholds:
+    class_0: 0.5
+    class_1: 0.5 
+
+#5 runtime settings
+runtime:
+  mode: "image"
+
+  input_source:
+    image: "data/test/"
+    video: ""
+    webcam_index: 0
+  device: "cuda"
+  batch_size: 32
+
+#6 visualization settings
+visualization:
+  colors:
+    ok: [0, 255, 0]
+    defect: [255, 0, 0]
+  display:
+    window_name: "defect detection"
+    show_confidence : true 
+    show_fps: true
+
+#7 kaggle dataset specific settings
+kaggle:
+  dataset_id: "severstal-steel-defect-detection"
+  
+  # Defect types in the Kaggle dataset
+  defect_classes:
+    1: "Pitted surface"
+    2: "Rolled-in scale"
+    3: "Scratches"
+    4: "Patches"
+  
+  # Original image size in the dataset
+  original_size: [1600, 256]

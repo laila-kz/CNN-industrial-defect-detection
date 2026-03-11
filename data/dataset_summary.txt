@@ -1,0 +1,33 @@
+KAGGLE STEEL DEFECT DATASET - ORGANIZED STRUCTURE
+============================================================
+
+Generated on: 2026-01-24 19:47:59
+
+OVERALL STATISTICS:
+Total unique images:      6666
+Images with defects:      6666
+Images without defects:   0
+Defect percentage:        100.0%
+
+TRAINING SET:
+Total images:        5332
+OK images:           0
+DEFECT images:       5332
+Defect percentage:   100.0%
+
+VALIDATION SET:
+Total images:        667
+OK images:           0
+DEFECT images:       667
+Defect percentage:   100.0%
+
+TEST SET:
+Total images:        667
+OK images:           0
+DEFECT images:       667
+Defect percentage:   100.0%
+
+COPYING RESULTS:
+Total copied:        6666
+Total skipped:       0
+Success rate:        100.0%
