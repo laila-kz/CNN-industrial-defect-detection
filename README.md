@@ -46,7 +46,7 @@ CNN-industrial-defects-detection
 The dataset used in this project comes from Kaggle.
 
 Dataset link:
-**[[Insert Google Drive Link Here]](https://www.kaggle.com/c/severstal-steel-defect-detection)**
+**[[ kaggle Dataset Link Here]](https://www.kaggle.com/c/severstal-steel-defect-detection)**
 
 
 Because of size limitations, the dataset is **not included in this repository**.
@@ -73,7 +73,7 @@ data/
 The trained CNN model weights are available here:
 
 **Google Drive link:**
-**[[Insert Google Drive Link Here]](https://drive.google.com/drive/folders/1984VXRz_nx7pguJJKlnbkhw0rgyR4NCb)**
+**[[ Google Drive Link Here]](https://drive.google.com/drive/folders/1984VXRz_nx7pguJJKlnbkhw0rgyR4NCb)**
 
 Download the model and place it inside:
 
