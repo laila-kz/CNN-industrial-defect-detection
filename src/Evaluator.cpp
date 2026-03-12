@@ -547,7 +547,19 @@ std::pair<float, float> Evaluator::computeConfidenceInterval(
     }
     
     // Z-score for confidence level (simplified - using 95% Z=1.96)
-    float z = Z_95;
+    // Convert confidence level to Z-score (common levels)
+    float z = 0.0f;
+    if (std::abs(confidenceLevel - 0.90f) < 1e-3f) {
+        z = 1.645f;
+    } else if (std::abs(confidenceLevel - 0.95f) < 1e-3f) {
+        z = 1.96f;
+    } else if (std::abs(confidenceLevel - 0.99f) < 1e-3f) {
+        z = 2.576f;
+    } else {
+        std::cerr << "[Warning] Unsupported confidence level: " << confidenceLevel
+                  << ". Falling back to 0.95." << std::endl;
+        z = 1.96f;
+    }
     
     // Standard error
     float se = std::sqrt(p * (1 - p) / n);
