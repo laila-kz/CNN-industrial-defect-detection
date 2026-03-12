@@ -258,6 +258,9 @@ float Evaluator::computeAUC() const {
     if (rocPoints.size() < 2) {
         return 0.0f;
     }
+    std::sort(rocPoints.begin(), rocPoints.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+
     
     // Compute AUC using trapezoidal rule
     float auc = 0.0f;
