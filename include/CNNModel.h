@@ -3,20 +3,15 @@
 
 #include <string>
 #include <vector>
-#include <opencv2/opencv.hpp>
 #include <memory>
+#include <filesystem>
+#include <opencv2/opencv.hpp>
+#include <torch/torch.h>
+#include <torch/script.h>
 
 namespace cv {
     class Mat;
 }
-//forward declarationfor torch model class
-#ifdef USE_TORCH
-namespace torch {
-    namespace nn {
-        class Module;
-    }   
-}
-#endif
 
 //use an enum for the cnn architecture types
 enum class ModelType {
