@@ -1,41 +1,102 @@
-# Build files
+# ==============================================================================
+# Git Ignore Configuration - CNN Industrial Defects Detection System
+# ==============================================================================
+
+# C/C++ Build Artifacts & Directories
 build/
+bin/
+out/
+dist/
 CMakeFiles/
 CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.ninja
+.ninja_*
+CMakeUserPresets.json
+
+# Compiled Object and Library Files
 *.o
+*.obj
 *.so
+*.dylib
+*.dll
 *.a
+*.lib
 *.exe
+*.exp
+*.ilk
+*.pdb
 
-# Python
+# Python Cache & Virtual Environments
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+*.ipynb_checkpoints/
 
-# Datasets
+# Raw Datasets & Organized Data (Keep repository lightweight)
 data/train/
 data/test/
 data/val/
+data/organized/
+data/train_images/
+data/test_images/
+data/*.zip
+data/*.tar.gz
+data/*.7z
+data/train.csv
 
-# Models
-models/
-*.pt
-*.pth
+# Large Binary Model Checkpoints & Serialized Weights
+models/*.pt
+models/*.pth
+models/*.onnx
+models/*.bin
+checkpoints/*.pt
+checkpoints/*.pth
 
-# Logs
+# Logs, Execution Outputs, & Experiment Dumps
 logs/
-
-# Outputs
 output/
 results/
+*.log
+training_history.csv
+dataset_summary.txt
 
-# Training history
-*.csv
-
-# System files
+# OS & Filesystem Metadata
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+[Dd]esktop.ini
 
-# IDE
-.vscode/
+# IDE & Editor Configurations
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
 .idea/
+*.swp
+*.swo
+*~
+*.suo
+*.user
+*.userosv
+*.sln.docstates
+.vs/
