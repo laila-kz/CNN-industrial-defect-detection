@@ -11,9 +11,9 @@
  * Outputs trained model to models/ folder
  */
 
-#include "ModelTrainer.h"
-#include "DataLoader.h"
-#include "LossFunctions.h"
+#include "../include/ModelTrainer.h"
+#include "../include/DataLoader.h"
+#include "../include/LossFunctions.h"
 #include <iostream>
 #include <filesystem>
 #include <memory>
@@ -21,6 +21,8 @@
 #include <iomanip>
 #include <sstream>
 #include <cstdlib>
+#include <opencv2/opencv.hpp>
+#include <torch/torch.h>
 
 namespace fs = std::filesystem;
 using namespace std::chrono;
@@ -33,6 +35,10 @@ void setupLogging();
 void validateEnvironment();
 void trainModel(const std::string& configPath);
 void printTrainingSummary(const std::vector<TrainingMetrics>& history);
+
+// Forward declarations for functions defined later in this file
+TrainingConfig loadTrainingConfig(const std::string& configPath);
+std::shared_ptr<torch::nn::Module> createDefectDetectionModel(int numClasses);
 
 /**
  * @brief Main training function

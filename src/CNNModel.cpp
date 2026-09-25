@@ -5,7 +5,9 @@
 #include <chrono>
 #include <stdexcept>
 #include <iomanip>
+#include <filesystem>
 
+namespace fs = std::filesystem;
 using namespace std;
 
 // model config implementation 

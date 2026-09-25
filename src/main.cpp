@@ -1,242 +1,414 @@
-//cordinates all the modules 
+/**
+ * @file main.cpp
+ * @brief Inference entry-point for the Industrial Defect Detection System.
+ *
+ * This executable coordinates all pipeline stages:
+ *   1. ImageLoader  — acquire images from file, folder, or webcam
+ *   2. Preprocessor — resize, color-convert, normalize
+ *   3. CNNModel     — TorchScript forward pass
+ *   4. DecisionEngine — apply business-logic threshold
+ *   5. Visualizer   — render results to screen / file
+ *   6. Evaluator    — collect and report metrics
+ *
+ * Usage:
+ *   CNNIndustrialDefectsDetection [options]
+ *
+ * Options:
+ *   -c, --config <path>   Path to config YAML (default: config/config.yaml)
+ *   -m, --mode   <mode>   Runtime mode: demo | image | folder | webcam (default: demo)
+ *   -i, --input  <path>   Input image or folder path (overrides config)
+ *   -h, --help            Print this help and exit
+ */
+
 #include <iostream>
 #include <string>
 #include <memory>
 #include <chrono>
 #include <csignal>
-
-#include "../include/ImageLoader.h"      // First: loads images
-#include "../include/Preprocessor.h"     // Second: processes images  
-#include "../include/CNNModel.h"         // Third: model inference
-#include "../include/DecisionEngine.h"   // Fourth: makes decisions
-#include "../include/Visualizer.h"       // Fifth: displays results
-#include "../include/Evaluator.h"        // Sixth: evaluates performance
+#include <filesystem>
 
 #include <opencv2/opencv.hpp>
 
+#include "../include/ImageLoader.h"
+#include "../include/Preprocessor.h"
+#include "../include/CNNModel.h"
+#include "../include/DecisionEngine.h"
+#include "../include/Visualizer.h"
+#include "../include/Evaluator.h"
+
+namespace fs = std::filesystem;
+
+// ---------------------------------------------------------------------------
+// Global graceful-shutdown flag (used by signal handler)
+// ---------------------------------------------------------------------------
+volatile sig_atomic_t g_stop = 0;
+
+// ---------------------------------------------------------------------------
 // Forward declarations
+// ---------------------------------------------------------------------------
 void printBanner();
 void printHelp();
-bool parseArguments(int argc, char* argv[], std::string& configPath);
-void signalHandler(int signal);
+bool parseArguments(int argc, char* argv[],
+                    std::string& configPath,
+                    std::string& runtimeMode,
+                    std::string& inputOverride);
+void signalHandler(int sig);
 void cleanup();
-void runDemoMode(ImageLoader& loader, Preprocessor& preprocessor);
-void runImageMode(ImageLoader& loader, Preprocessor& preprocessor);
-void runFolderMode(ImageLoader& loader, Preprocessor& preprocessor);
-void runWebcamMode(ImageLoader& loader, Preprocessor& preprocessor);
 
-// Global variable for signal handling
-volatile sig_atomic_t g_signalReceived = 0;
+void runDemoMode   (Preprocessor& preprocessor);
+void runImageMode  (const std::string& imagePath,
+                    ImageLoader& loader,
+                    Preprocessor& preprocessor,
+                    CNNModel& model,
+                    DecisionEngine& engine,
+                    Visualizer& visualizer);
+void runFolderMode (const std::string& folderPath,
+                    ImageLoader& loader,
+                    Preprocessor& preprocessor,
+                    CNNModel& model,
+                    DecisionEngine& engine,
+                    Visualizer& visualizer,
+                    Evaluator& evaluator);
 
-//MAIN FUNCTION
-int main(int argc, char* argv[]){
+// ---------------------------------------------------------------------------
+// main
+// ---------------------------------------------------------------------------
+int main(int argc, char* argv[]) {
     printBanner();
-    std::string configPath = "config/config.yaml";
-    if(!parseArguments(argc, argv, configPath)){
-        
+
+    // 1. Parse arguments
+    std::string configPath    = "config/config.yaml";
+    std::string runtimeMode   = "demo";
+    std::string inputOverride = "";
+
+    if (!parseArguments(argc, argv, configPath, runtimeMode, inputOverride)) {
         return 1;
     }
 
-    std::signal(SIGINT, signalHandler);
+    // 2. Register signal handlers for graceful Ctrl-C / SIGTERM shutdown
+    std::signal(SIGINT,  signalHandler);
     std::signal(SIGTERM, signalHandler);
-    
-    std::cout << "\n[MAIN] Initializing Industrial Defect Detection System...\n";
-    std::cout << "       Config file: " << configPath << "\n";
-    
-    // 2. LOAD CONFIGURATION (hardcoded for now)
-    std::cout << "[MAIN] Loading configuration...\n";
-    int imageWidth = 224;
-    int imageHeight = 224;
-    float defectThreshold = 0.75f;
-    std::string runtimeMode = "demo";  // Change to "image" later
-    
-    std::cout << "       Image size: " << imageWidth << "x" << imageHeight << "\n";
-    std::cout << "       Defect threshold: " << defectThreshold << "\n";
-    std::cout << "       Runtime mode: " << runtimeMode << "\n";
 
-    // 3. INITIALIZE MODULES
-    std::cout << "\n[MAIN] Initializing system modules...\n";
-    
+    // 3. Validate configuration file
+    if (!fs::exists(configPath)) {
+        std::cerr << "[ERROR] Configuration file not found: " << configPath << "\n";
+        std::cerr << "        Expected at: " << fs::absolute(configPath) << "\n";
+        return 1;
+    }
+    std::cout << "[MAIN] Config : " << configPath << "\n";
+    std::cout << "[MAIN] Mode   : " << runtimeMode << "\n";
+
+    // 4. Hard-coded defaults (YAML parser not implemented yet — see NOTES.md)
+    const int   imageWidth       = 224;
+    const int   imageHeight      = 224;
+    const float defectThreshold  = 0.75f;
+    const std::string modelPath  = "models/defect_model.pt";
+
+    // 5. Validate model file for non-demo modes
+    if (runtimeMode != "demo" && !fs::exists(modelPath)) {
+        std::cerr << "[ERROR] Model file not found: " << modelPath << "\n";
+        std::cerr << "        Run CNNIndustrialDefectsTraining first, or place a\n";
+        std::cerr << "        pre-trained model at " << fs::absolute(modelPath) << "\n";
+        return 1;
+    }
+
+    std::cout << "[MAIN] Image size       : " << imageWidth << "x" << imageHeight << "\n";
+    std::cout << "[MAIN] Defect threshold : " << defectThreshold << "\n";
+
+    // 6. Initialise all pipeline modules
+    std::cout << "\n[MAIN] Initializing pipeline modules...\n";
     try {
-        // Initialize ImageLoader
-        std::cout << "[MAIN]   • Initializing ImageLoader... ";
-        std::unique_ptr<ImageLoader> imageLoader = std::make_unique<ImageLoader>();
+        // ImageLoader
+        std::cout << "[MAIN]   • ImageLoader     ... ";
+        auto imageLoader = std::make_unique<ImageLoader>();
         std::cout << "OK\n";
-        
-        // Initialize Preprocessor
-        std::cout << "[MAIN]   • Initializing Preprocessor... ";
-        PreprocessorConfig preprocessConfig;
-        preprocessConfig.targetWidth = imageWidth;
-        preprocessConfig.targetHeight = imageHeight;
-        preprocessConfig.mean = {0.485, 0.456, 0.406};
-        preprocessConfig.stdDev = {0.229, 0.224, 0.225};
-        
-        std::unique_ptr<Preprocessor> preprocessor = std::make_unique<Preprocessor>(preprocessConfig);
+
+        // Preprocessor
+        std::cout << "[MAIN]   • Preprocessor    ... ";
+        PreprocessorConfig ppCfg;
+        ppCfg.targetWidth   = imageWidth;
+        ppCfg.targetHeight  = imageHeight;
+        ppCfg.mean          = {0.485, 0.456, 0.406};
+        ppCfg.stdDev        = {0.229, 0.224, 0.225};
+        ppCfg.convertToRGB  = true;
+        auto preprocessor = std::make_unique<Preprocessor>(ppCfg);
         std::cout << "OK\n";
-        
-        // Model placeholder
-        std::cout << "[MAIN]   • Initializing CNN Model... ";
-        std::cout << "SKIPPED (will add later)\n";
-        
-        // Visualizer placeholder
-        std::cout << "[MAIN]   • Initializing Visualizer... ";
-        std::cout << "SKIPPED (will add later)\n";
-        
-        // 4. START INFERENCE LOOP
-        std::cout << "\n[MAIN] Starting " << runtimeMode << " mode...\n";
-        
+
+        // CNNModel (skip for demo mode — no model file required)
+        std::cout << "[MAIN]   • CNNModel        ... ";
+        std::unique_ptr<CNNModel> cnnModel;
+        if (runtimeMode != "demo") {
+            ModelConfig modelCfg;
+            modelCfg.modelPath           = modelPath;
+            modelCfg.inputWidth          = imageWidth;
+            modelCfg.inputHeight         = imageHeight;
+            modelCfg.numClasses          = 2;
+            modelCfg.classNames          = {"OK", "DEFECT"};
+            modelCfg.confidenceThreshold = defectThreshold;
+            cnnModel = std::make_unique<CNNModel>(modelCfg);
+            if (!cnnModel->LoadModel(modelPath)) {
+                std::cerr << "FAILED\n";
+                std::cerr << "[ERROR] Could not load model from: " << modelPath << "\n";
+                return 1;
+            }
+            std::cout << "OK\n";
+        } else {
+            std::cout << "SKIPPED (demo mode)\n";
+        }
+
+        // DecisionEngine
+        std::cout << "[MAIN]   • DecisionEngine  ... ";
+        DecisionConfig decCfg;
+        decCfg.defectThreshold       = defectThreshold;
+        decCfg.useUncertaintyThreshold = true;
+        auto decisionEngine = std::make_unique<DecisionEngine>(decCfg);
+        std::cout << "OK\n";
+
+        // Visualizer
+        std::cout << "[MAIN]   • Visualizer      ... ";
+        DisplayConfig visCfg;
+        visCfg.windowName = "Industrial Defect Detection System";
+        auto visualizer = std::make_unique<Visualizer>(visCfg);
+        visualizer->initialize();
+        std::cout << "OK\n";
+
+        // Evaluator
+        std::cout << "[MAIN]   • Evaluator       ... ";
+        Evaluator evaluator(defectThreshold);
+        std::cout << "OK\n";
+
+        // 7. Dispatch to selected runtime mode
+        std::cout << "\n[MAIN] Starting runtime mode: " << runtimeMode << "\n";
+        std::cout << "       Press Ctrl-C to exit cleanly.\n\n";
+
         if (runtimeMode == "demo") {
-            runDemoMode(*imageLoader, *preprocessor);
-        } 
-        else if (runtimeMode == "image") {
-            runImageMode(*imageLoader, *preprocessor);
+            runDemoMode(*preprocessor);
+
+        } else if (runtimeMode == "image") {
+            const std::string src = inputOverride.empty() ? "data/organized/test" : inputOverride;
+            runImageMode(src, *imageLoader, *preprocessor, *cnnModel, *decisionEngine, *visualizer);
+
+        } else if (runtimeMode == "folder") {
+            const std::string src = inputOverride.empty() ? "data/organized/test" : inputOverride;
+            runFolderMode(src, *imageLoader, *preprocessor, *cnnModel,
+                          *decisionEngine, *visualizer, evaluator);
+            // Print final metrics
+            auto metrics = evaluator.computeMetrics();
+            metrics.print();
+
+        } else {
+            std::cerr << "[ERROR] Unknown mode: " << runtimeMode
+                      << "  (valid options: demo | image | folder | webcam)\n";
+            return 1;
         }
-        else if (runtimeMode == "folder") {
-            runFolderMode(*imageLoader, *preprocessor);
-        }
-        else if (runtimeMode == "webcam") {
-            runWebcamMode(*imageLoader, *preprocessor);
-        }
-        else {
-            std::cout << "[ERROR] Unknown mode: " << runtimeMode << "\n";
-        }
-        
+
     } catch (const std::exception& e) {
-        std::cerr << "\n[ERROR] Exception: " << e.what() << "\n";
+        std::cerr << "\n[FATAL] Unhandled exception: " << e.what() << "\n";
         cleanup();
         return 1;
     }
-    
-    // 5. CLEANUP
+
     cleanup();
     std::cout << "\n[MAIN] System shutdown complete.\n";
     return 0;
 }
 
-//helper functions implementation
+// ---------------------------------------------------------------------------
+// Helper implementations
+// ---------------------------------------------------------------------------
 
-void printBanner(){
-    std::cout << "\n";
-    std::cout << "======================================================\n";
-    std::cout << "    INDUSTRIAL DEFECT DETECTION SYSTEM\n";
-    std::cout << "    CNN-Based Quality Control\n";
-    std::cout << "======================================================\n";
-    std::cout << "\n";
-
+void printBanner() {
+    std::cout << R"(
+======================================================
+    INDUSTRIAL DEFECT DETECTION SYSTEM
+    CNN-Based Quality Control — C++ / LibTorch
+======================================================
+)" << "\n";
 }
 
-void printHelp(){
-    std::cout << "Usage: defect_detection [options]\n";
-    std::cout << "Options:\n";
-    std::cout << "  -h, --help            Show this help message\n";
-    std::cout << "  -c, --config <path>   Path to configuration file (default: config/config.yaml)\n";
-    std::cout << "  -m, --mode <mode>     Runtime mode: demo, image, folder, webcam (default: demo)\n";
-    std::cout << "\n";
+void printHelp() {
+    std::cout <<
+        "Usage: CNNIndustrialDefectsDetection [options]\n"
+        "\n"
+        "Options:\n"
+        "  -h, --help                 Show this message and exit\n"
+        "  -c, --config  <path>       Path to config.yaml (default: config/config.yaml)\n"
+        "  -m, --mode    <mode>       Runtime mode: demo | image | folder | webcam\n"
+        "  -i, --input   <path>       Input image or folder (overrides config value)\n"
+        "\n"
+        "Examples:\n"
+        "  # Run the built-in preprocessing demo\n"
+        "  ./CNNIndustrialDefectsDetection --mode demo\n"
+        "\n"
+        "  # Run inference on a single image\n"
+        "  ./CNNIndustrialDefectsDetection --mode image --input data/organized/test/DEFECT/0002cc93b.jpg\n"
+        "\n"
+        "  # Evaluate all images in the test folder\n"
+        "  ./CNNIndustrialDefectsDetection --mode folder --input data/organized/test\n"
+        "\n";
 }
 
-bool parseArguments(int argc, char* argv[], std::string& configPath){
-    for(int i=1; i< argc; i++){
+bool parseArguments(int argc, char* argv[],
+                    std::string& configPath,
+                    std::string& runtimeMode,
+                    std::string& inputOverride) {
+    for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if(arg == "-h" || arg == "--help"){
+
+        if (arg == "-h" || arg == "--help") {
             printHelp();
             return false;
-        } else if(arg == "-c" || arg == "--config"){
-            if(i +1 < argc){
-                configPath = argv[++i];
-            } else{
-                std::cerr << "[ERROR] Missing argument for " << arg << "\n";
-                return false;
-            }
-        } else{
-            std::cerr << "[ERROR] Unknown argument: " << arg << "\n";
+        } else if ((arg == "-c" || arg == "--config") && i + 1 < argc) {
+            configPath = argv[++i];
+        } else if ((arg == "-m" || arg == "--mode") && i + 1 < argc) {
+            runtimeMode = argv[++i];
+        } else if ((arg == "-i" || arg == "--input") && i + 1 < argc) {
+            inputOverride = argv[++i];
+        } else {
+            std::cerr << "[ERROR] Unknown or incomplete argument: " << arg << "\n";
+            printHelp();
             return false;
         }
     }
     return true;
 }
 
-void signalHandler(int signal){
-    g_signalReceived = signal;
-    std::cout << "\n[MAIN] Signal " << signal << " received. Initiating shutdown...\n";
+void signalHandler(int sig) {
+    g_stop = sig;
+    std::cout << "\n[MAIN] Signal " << sig << " received — shutting down...\n";
 }
 
-void cleanup(){
-    std::cout << "[MAIN] Cleaning up resources...\n";
+void cleanup() {
+    std::cout << "[MAIN] Releasing OpenCV windows...\n";
     cv::destroyAllWindows();
 }
 
+// ---------------------------------------------------------------------------
+// Runtime mode implementations
+// ---------------------------------------------------------------------------
 
-// runtime mode functions 
-void runDemoMode(ImageLoader& loader, Preprocessor& preprocessor) {
-    std::cout << "\n[DEMO] Running demonstration mode\n";
-    std::cout << "       Testing basic functionality...\n\n";
-    
+void runDemoMode(Preprocessor& preprocessor) {
+    std::cout << "[DEMO] Testing basic preprocessing pipeline...\n\n";
     try {
-        // Create a test image
-        std::cout << "[DEMO] 1. Creating test image...\n";
+        // Synthesize a test image
         cv::Mat testImage(300, 400, CV_8UC3, cv::Scalar(50, 100, 150));
-        
-        // Add some text
-        cv::putText(testImage, "DEFECT SIMULATION", cv::Point(50, 150),
-                   cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 255), 2);
-        cv::putText(testImage, "Steel Surface", cv::Point(100, 200),
-                   cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(200, 200, 200), 1);
-        
-        std::cout << "       Test image created: " 
+        cv::putText(testImage, "DEFECT SIMULATION",
+                    cv::Point(40, 150), cv::FONT_HERSHEY_SIMPLEX,
+                    1.0, cv::Scalar(0, 0, 255), 2);
+        cv::putText(testImage, "Steel Surface",
+                    cv::Point(100, 210), cv::FONT_HERSHEY_SIMPLEX,
+                    0.7, cv::Scalar(200, 200, 200), 1);
+        std::cout << "[DEMO] Synthetic image created: "
                   << testImage.cols << "x" << testImage.rows << "\n";
-        
-        // Preprocess the image
-        std::cout << "\n[DEMO] 2. Preprocessing image...\n";
-        cv::Mat processedImage = preprocessor.preprocess(testImage);
-        std::cout << "       Processed to: " 
-                  << processedImage.cols << "x" << processedImage.rows << "\n";
-        
-        // Display results
-        std::cout << "\n[DEMO] 3. Displaying results...\n";
-        std::cout << "       Press any key to continue...\n";
-        
-        // Resize for display
-        cv::Mat displayOriginal;
-        cv::resize(testImage, displayOriginal, cv::Size(400, 300));
-        
-        cv::Mat displayProcessed;
-        cv::resize(processedImage, displayProcessed, cv::Size(400, 300));
-        
-        // Convert to BGR for display
-        cv::Mat displayProcessedBGR;
-        cv::cvtColor(displayProcessed, displayProcessedBGR, cv::COLOR_RGB2BGR);
-        
-        // Create combined display
-        cv::Mat combined(300, 800, CV_8UC3, cv::Scalar(40, 40, 40));
-        displayOriginal.copyTo(combined(cv::Rect(0, 0, 400, 300)));
-        displayProcessedBGR.copyTo(combined(cv::Rect(400, 0, 400, 300)));
-        
-        // Add labels
-        cv::putText(combined, "Original", cv::Point(150, 30),
-                   cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(255, 255, 255), 2);
-        cv::putText(combined, "Processed (224x224)", cv::Point(450, 30),
-                   cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(255, 255, 255), 2);
-        
-        cv::imshow("Demo Mode - Image Preprocessing", combined);
+
+        // Preprocess
+        cv::Mat processed = preprocessor.preprocess(testImage);
+        std::cout << "[DEMO] Preprocessed to: "
+                  << processed.cols << "x" << processed.rows << "\n";
+
+        // Side-by-side display
+        cv::Mat displayOrig, displayProc, displayProcBGR, combined;
+        cv::resize(testImage,  displayOrig, cv::Size(400, 300));
+        cv::resize(processed,  displayProc, cv::Size(400, 300));
+        cv::cvtColor(displayProc, displayProcBGR, cv::COLOR_RGB2BGR);
+
+        combined = cv::Mat(300, 800, CV_8UC3, cv::Scalar(40, 40, 40));
+        displayOrig.copyTo(combined(cv::Rect(0,   0, 400, 300)));
+        displayProcBGR.copyTo(combined(cv::Rect(400, 0, 400, 300)));
+
+        cv::putText(combined, "Original",
+                    cv::Point(140, 30), cv::FONT_HERSHEY_SIMPLEX, 1.0,
+                    cv::Scalar(255, 255, 255), 2);
+        cv::putText(combined, "Preprocessed (224x224)",
+                    cv::Point(420, 30), cv::FONT_HERSHEY_SIMPLEX, 0.9,
+                    cv::Scalar(255, 255, 255), 2);
+
+        cv::imshow("Demo — Preprocessing Pipeline", combined);
+        std::cout << "[DEMO] Press any key to exit...\n";
         cv::waitKey(0);
-        
-        std::cout << "\n[DEMO] ✅ Demonstration completed!\n";
-        
+
+        std::cout << "[DEMO] OK — Demo completed.\n";
     } catch (const std::exception& e) {
         std::cerr << "[DEMO ERROR] " << e.what() << "\n";
     }
 }
 
-void runImageMode(ImageLoader& loader, Preprocessor& preprocessor) {
-    std::cout << "\n[IMAGE MODE] Processing single image\n";
-    std::cout << "             (Not implemented yet)\n";
-    std::cout << "             Will process: ./data/organized/test/DEFECT/0002cc93b.jpg\n";
+void runImageMode(const std::string& imagePath,
+                  ImageLoader& loader,
+                  Preprocessor& preprocessor,
+                  CNNModel& model,
+                  DecisionEngine& engine,
+                  Visualizer& visualizer) {
+    std::cout << "[IMAGE] Processing: " << imagePath << "\n";
+    try {
+        cv::Mat image  = loader.loadImage(imagePath);
+        cv::Mat prep   = preprocessor.preprocess(image);
+        auto output    = model.predict(prep);
+        float defectP  = output.probabilities.size() > 1 ? output.probabilities[1] : output.confidence;
+        auto decision  = engine.makeDecision(defectP);
+
+        std::cout << "[IMAGE] Result: " << decision.label
+                  << "  (defect probability: " << defectP * 100.0f << "%)\n";
+
+        VisualData vd;
+        vd.originalImage = image;
+        vd.detectionResult.label      = decision.label;
+        vd.detectionResult.confidence = decision.confidence;
+        vd.detectionResult.color      = decision.getDisplayColor();
+
+        auto frame = visualizer.visualize(vd);
+        cv::imshow("Result", frame);
+        cv::waitKey(0);
+    } catch (const std::exception& e) {
+        std::cerr << "[IMAGE ERROR] " << e.what() << "\n";
+    }
 }
 
-void runFolderMode(ImageLoader& loader, Preprocessor& preprocessor) {
-    std::cout << "\n[FOLDER MODE] Not implemented yet\n";
-}
+void runFolderMode(const std::string& folderPath,
+                   ImageLoader& loader,
+                   Preprocessor& preprocessor,
+                   CNNModel& model,
+                   DecisionEngine& engine,
+                   Visualizer& visualizer,
+                   Evaluator& evaluator) {
+    std::cout << "[FOLDER] Processing folder: " << folderPath << "\n";
 
-void runWebcamMode(ImageLoader& loader, Preprocessor& preprocessor) {
-    std::cout << "\n[WEBCAM MODE] Not implemented yet\n";
+    if (!fs::exists(folderPath) || !fs::is_directory(folderPath)) {
+        std::cerr << "[FOLDER ERROR] Directory not found: " << folderPath << "\n";
+        return;
+    }
+
+    int processed = 0;
+    for (const auto& entry : fs::recursive_directory_iterator(folderPath)) {
+        if (g_stop) break;
+        if (!entry.is_regular_file()) continue;
+
+        std::string ext = entry.path().extension().string();
+        for (auto& c : ext) c = static_cast<char>(std::tolower(c));
+        if (ext != ".jpg" && ext != ".jpeg" && ext != ".png") continue;
+
+        try {
+            cv::Mat image = loader.loadImage(entry.path().string());
+            cv::Mat prep  = preprocessor.preprocess(image);
+            auto output   = model.predict(prep);
+            float defectP = output.probabilities.size() > 1
+                            ? output.probabilities[1]
+                            : output.confidence;
+            auto decision = engine.makeDecision(defectP);
+
+            // Determine ground-truth from parent folder name (OK or DEFECT)
+            std::string parentFolder = entry.path().parent_path().filename().string();
+            int trueLabel = (parentFolder == "DEFECT") ? 1 : 0;
+            evaluator.addResult(trueLabel, output.predictedClass, output.confidence,
+                                entry.path().string());
+
+            ++processed;
+            if (processed % 50 == 0) {
+                std::cout << "[FOLDER] Processed " << processed << " images...\n";
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "[FOLDER WARNING] " << entry.path().string() << ": " << e.what() << "\n";
+        }
+    }
+    std::cout << "[FOLDER] Done. Total images processed: " << processed << "\n";
 }

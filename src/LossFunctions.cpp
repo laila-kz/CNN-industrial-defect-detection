@@ -1,4 +1,4 @@
-#include "LossFunctions.h"
+#include "../include/LossFunctions.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>

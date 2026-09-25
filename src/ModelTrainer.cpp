@@ -1,7 +1,7 @@
-#include "ModelTrainer.h"
-#include "ImageLoader.h"
-#include "Preprocessor.h"
-#include "DataLoader.h"
+#include "../include/ModelTrainer.h"
+#include "../include/ImageLoader.h"
+#include "../include/Preprocessor.h"
+#include "../include/DataLoader.h"
 #include <torch/torch.h>
 #include <torch/csrc/api/include/torch/serialize.h>
 #include <torch/csrc/api/include/torch/nn/modules/container/any.h>
