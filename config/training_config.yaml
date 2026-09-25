@@ -1,10 +1,53 @@
-# Training Configuration
-trainDataPath: data/train
-valDataPath: data/val
-testDataPath: data/test
-trainValSplit: 0.8
-numClasses: 2
-numEpochs: 50
-batchSize: 32
+# =============================================================================
+# Training Configuration — CNN Industrial Defect Detection System
+# =============================================================================
+
+# Data paths (relative to project root, or absolute)
+trainDataPath: "data/organized/train"
+valDataPath:   "data/organized/val"
+testDataPath:  "data/organized/test"
+trainValSplit: 0.8              # Used only if a separate val set is absent
+
+# Classification
+numClasses: 2                  # 0=OK, 1=DEFECT
+
+# Training hyperparameters
+numEpochs:    50
+batchSize:    32
 learningRate: 0.001
-useGPU: true
+weightDecay:  0.0001
+
+# Optimizer — Options: SGD | ADAM | RMSPROP | ADAGRAD
+optimizer:    ADAM
+sgdMomentum:  0.9
+adamBeta1:    0.9
+adamBeta2:    0.999
+
+# Loss function — Options: CROSS_ENTROPY | FOCAL_LOSS | BCE_WITH_LOGITS
+lossFunction: CROSS_ENTROPY
+focalGamma:   2.0              # Focal loss parameter (used only if FOCAL_LOSS)
+focalAlpha:   0.25             # Focal loss parameter
+
+# Learning rate scheduler — Options: STEP_LR | EXPONENTIAL_LR | COSINE_ANNEALING_LR
+lrScheduler:  STEP_LR
+lrStepSize:   10               # Decay LR every N epochs (StepLR)
+lrGamma:      0.1              # LR multiplicative factor
+
+# Hardware
+useGPU: false                  # Set true if CUDA-enabled LibTorch is installed
+
+# Checkpointing
+saveCheckpoints:   true
+checkpointInterval: 5          # Save every N epochs
+checkpointDir:     "checkpoints/"
+bestModelPath:     "checkpoints/best_model.pt"
+finalModelPath:    "models/defect_model.pt"
+
+# Data augmentation
+useDataAugmentation:  true
+horizontalFlipProb:   0.5
+rotationRange:        15.0     # degrees
+
+# Early stopping
+useEarlyStopping:     true
+earlyStoppingPatience: 10      # Epochs without val improvement before stopping

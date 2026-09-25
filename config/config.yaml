@@ -1,73 +1,79 @@
-#Central configuration file
+# =============================================================================
+# Central Configuration File — CNN Industrial Defect Detection System
+# =============================================================================
 
-#1 paths and directories
+# 1. Filesystem Paths
 paths:
-  train_img: "data/train/"
-  test_img: "data/test/"
-  train.csv: "data/train.csv"
-  model_save_path: "models/best_model.pth"
-  output_dir: "results/"
+  train_img:       "data/organized/train/"
+  val_img:         "data/organized/val/"
+  test_img:        "data/organized/test/"
+  train_csv:       "data/train.csv"          # Kaggle annotation CSV (raw)
+  model_save_path: "models/best_model.pt"   # Use .pt for TorchScript
+  checkpoint_dir:  "checkpoints/"
+  output_dir:      "results/"
+  log_dir:         "logs/"
 
-#2 img configuration 
+# 2. Image Configuration
 img_config:
-  input_size: [224,224]
-  color_space: "RGB"
+  input_size: [224, 224]
+  color_space: "RGB"            # CNN expects RGB; OpenCV loads BGR — convert inside Preprocessor
 
   normalization:
-    mean: [0.485, 0.456, 0.406]
-    std: [0.229, 0.224, 0.225]
+    mean: [0.485, 0.456, 0.406]  # ImageNet statistics
+    std:  [0.229, 0.224, 0.225]
 
   augmentation:
-    horizontal_flip: true
-    rotation_range: 10
+    horizontal_flip:   true
+    rotation_range:    10         # degrees
     brightness_jitter: 0.2
 
-#3 model parameters
+# 3. Model Parameters
 model:
-  architecture: "resnet50"
-  pretrained: true
-  num_classes: 2
+  architecture: "custom_cnn"    # Options: custom_cnn, resnet18, resnet50
+  pretrained:   false           # Set true only when loading a pretrained torchvision backbone
+  num_classes:  2               # Binary: 0=OK, 1=DEFECT
   input_channels: 3
 
-#4 thresholds and hyperparameters
+# 4. Decision Thresholds
 thresholds:
-  defect_threshold: 0.75
+  defect_threshold: 0.75        # Probability above which a sample is labeled DEFECT
+  uncertainty_margin: 0.10      # Zone around threshold requiring human review
 
   class_thresholds:
-    class_0: 0.5
-    class_1: 0.5 
+    class_0: 0.5                # OK
+    class_1: 0.5                # DEFECT (overridden by defect_threshold above)
 
-#5 runtime settings
+# 5. Runtime Settings
 runtime:
-  mode: "image"
+  mode: "image"                 # Options: demo | image | folder | webcam
 
   input_source:
-    image: "data/test/"
-    video: ""
+    image:        "data/organized/test/"
+    video:        ""            # Leave empty if not using video mode
     webcam_index: 0
-  device: "cuda"
-  batch_size: 32
+  device:     "cpu"             # Options: cpu | cuda
+  batch_size: 1                 # Inference batch size (set 1 for real-time)
 
-#6 visualization settings
+# 6. Visualization Settings
 visualization:
   colors:
-    ok: [0, 255, 0]
-    defect: [255, 0, 0]
+    ok:     [0, 255, 0]         # Green (BGR)
+    defect: [0, 0, 255]         # Red (BGR)
   display:
-    window_name: "defect detection"
-    show_confidence : true 
-    show_fps: true
+    window_name:     "Defect Detection — Industrial CNN"
+    show_confidence: true
+    show_fps:        true
 
-#7 kaggle dataset specific settings
+# 7. Kaggle Severstal Dataset — Reference Metadata
 kaggle:
   dataset_id: "severstal-steel-defect-detection"
-  
-  # Defect types in the Kaggle dataset
+
+  # Four defect class labels defined in the Kaggle competition
   defect_classes:
     1: "Pitted surface"
     2: "Rolled-in scale"
     3: "Scratches"
     4: "Patches"
-  
-  # Original image size in the dataset
-  original_size: [1600, 256]
+
+  # Full resolution of original Kaggle images (W x H)
+  original_size: [1600, 256]
